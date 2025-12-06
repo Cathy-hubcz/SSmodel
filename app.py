@@ -7,6 +7,7 @@ from sklearn.linear_model import LinearRegression
 from sklearn.preprocessing import PolynomialFeatures
 from sklearn.metrics import r2_score
 import io
+import statsmodels.api as sm
 
 # ==========================================
 # 1. 台灣數據 (Taiwan Data - 您提供的精確數據)
@@ -481,6 +482,58 @@ with tab1:
         st.write("Nedostatek dat.")
 
 # --- TAB 2: Convergence ---
+def get_trendline_analysis(df, x_col, y_col, title_prefix):
+    """計算線性趨勢線、方程式和 R²，並生成圖表和文字分析。"""
+    if len(df) < 2:
+        return None, f"Nedostatek dat pro {title_prefix} analýzu."
+
+    X = df[x_col].values.reshape(-1, 1)
+    y = df[y_col].values
+    
+    # 使用年份作為 X 軸，但為了迴歸計算，我們將其標準化為從 0 開始
+    t = X - X.min()
+    
+    mod = LinearRegression().fit(t, y)
+    y_pred = mod.predict(t)
+    
+    slope = mod.coef_[0]
+    intercept = mod.intercept_
+    r2 = r2_score(y, y_pred)
+    
+    # 趨勢線方程式: y = slope * (Year - min_Year) + intercept
+    # 為了顯示更直觀的方程式，我們使用 Year 作為變數
+    # y = slope * Year + (intercept - slope * min_Year)
+    adjusted_intercept = intercept - slope * X.min()
+    eq = f"y = {slope:.4f}x + {adjusted_intercept:.4f}"
+    
+    # 繪圖
+    fig = px.line(df, x=x_col, y=y_col, title=f"{title_prefix} Konvergence", markers=True)
+    
+    # 新增趨勢線
+    x_range = np.linspace(df[x_col].min(), df[x_col].max(), 100).reshape(-1, 1)
+    t_range = x_range - X.min()
+    y_range = mod.predict(t_range)
+    
+    fig.add_trace(go.Scatter(x=x_range.flatten(), y=y_range, mode='lines', name=f'Trendline (R²={r2:.4f})', line=dict(color='red', dash='dash')))
+    
+    # 新增方程式和 R²
+    fig.add_annotation(
+        x=0.95, y=0.95, xref="paper", yref="paper",
+        text=f"<b>{eq}<br>R²={r2:.4f}</b>",
+        showarrow=False, font=dict(size=14, color="red"), bgcolor="white",
+        xanchor='right', yanchor='top'
+    )
+    
+    # 文字分析
+    if slope < 0:
+        analysis = f"**文字分析 (Text Analysis):** 趨勢線斜率為 **{slope:.4f}** (負值)，表示隨著時間的推移，選定國家/地區的 {title_prefix} **正在收斂** (Sigma-konvergence)。這意味著它們之間的經濟差異正在縮小。"
+    elif slope > 0:
+        analysis = f"**文字分析 (Text Analysis):** 趨勢線斜率為 **{slope:.4f}** (正值)，表示隨著時間的推移，選定國家/地區的 {title_prefix} **正在發散** (Divergence)。這意味著它們之間的經濟差異正在擴大。"
+    else:
+        analysis = f"**文字分析 (Text Analysis):** 趨勢線斜率為 **{slope:.4f}** (接近零)，表示選定國家/地區的 {title_prefix} **保持穩定**，沒有明顯的收斂或發散趨勢。"
+        
+    return fig, analysis
+
 with tab2:
     st.header("Analýza konvergence")
     
@@ -545,8 +598,38 @@ with tab2:
 
     st.markdown("---")
     
-    # Sigma Convergence (CV)
-    st.subheader("2. Sigma Konvergence (CV)")
+    st.markdown("---")
+    
+    # 2. Sigma Convergence (StdDev(ln(GDP)))
+    st.subheader("2. Sigma Konvergence (StdDev(ln(GDP)))")
+    
+    sigma_ln_data = []
+    years_sigma = sorted(df_filtered['Year'].unique())
+    
+    for y in years_sigma:
+        sub = df_filtered[df_filtered['Year'] == y]
+        if len(sub) > 1:
+            # 計算 ln(GDP) 的標準差
+            ln_gdp = np.log(sub['GDP'])
+            std_ln = ln_gdp.std()
+            sigma_ln_data.append({'Year': y, 'StdDev_ln_GDP': std_ln})
+            
+    if sigma_ln_data:
+        df_sigma_ln = pd.DataFrame(sigma_ln_data)
+        fig_sigma_ln, analysis_sigma_ln = get_trendline_analysis(df_sigma_ln, 'Year', 'StdDev_ln_GDP', "Sigma (StdDev(ln(HDP per capita)))")
+        
+        if fig_sigma_ln:
+            st.plotly_chart(fig_sigma_ln, use_container_width=True)
+            st.markdown(analysis_sigma_ln)
+        else:
+            st.write(analysis_sigma_ln)
+    else:
+        st.write("Nedostatek dat pro Sigma Konvergence (StdDev(ln(GDP))).")
+        
+    st.markdown("---")
+    
+    # 3. CV Convergence (Coefficient of Variation)
+    st.subheader("3. Variační Koeficient (CV - StdDev(GDP)/Mean(GDP))")
     
     cv_data = []
     years_cv = sorted(df_filtered['Year'].unique())
@@ -561,7 +644,12 @@ with tab2:
     
     if cv_data:
         df_cv = pd.DataFrame(cv_data)
-        fig_cv = px.line(df_cv, x='Year', y='CV', title="Sigma Konvergence (Coefficient of Variation)", markers=True)
-        st.plotly_chart(fig_cv, use_container_width=True)
+        fig_cv, analysis_cv = get_trendline_analysis(df_cv, 'Year', 'CV', "CV (Variační Koeficient)")
+        
+        if fig_cv:
+            st.plotly_chart(fig_cv, use_container_width=True)
+            st.markdown(analysis_cv)
+        else:
+            st.write(analysis_cv)
     else:
-        st.write("Nedostatek dat.")
+        st.write("Nedostatek dat pro Variační Koeficient (CV).")
