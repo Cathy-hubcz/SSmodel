@@ -13,7 +13,6 @@ import statsmodels.api as sm
 # 1. 台灣數據 (Taiwan Data - 您提供的精確數據)
 
 # 台灣數據 CSV
-taiwan_data_csv = """
 # ==========================================
 taiwan_data_csv = """Year,GDP
 1971,2068.34
