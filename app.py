@@ -433,7 +433,7 @@ tab1, tab2 = st.tabs(["Jedna země (Single Country)", "Konvergence (Convergence)
 
 # --- TAB 1: Single Country ---
 with tab1:
-    st.header("Analýza trendů HDP")
+    st.header("Analýza trendů HDP per capita")
     c_single = st.selectbox("Vyberte zemi:", selected_countries)
     
     df_s = df_filtered[df_filtered['Country'] == c_single].sort_values('Year')
@@ -483,32 +483,33 @@ with tab1:
         
         # 寫法 B: 指數形式 (S-S 理論形式 y = A * e^gt)
         A_0 = np.exp(intercept_exp) # 還原初始值
-        eq_exp_real = f"y = {A_0:.2f} \\cdot e^{{{slope_exp:.4f}t}}" # 使用 \cdot 和 {} 確保 LaTeX 顯示正確
+        # 為了與 Excel 範例的格式 y = 2068.3e0.0577x 一致，移除 \cdot 和 {}
+        eq_exp_real = f"y = {A_0:.4g}e^{{{slope_exp:.4f}t}}" # 使用 .4g 確保數字精度，並使用 t 作為變數
         
         # Plot
         fig = go.Figure()
-        fig.add_trace(go.Scatter(x=df_s['Year'], y=y, mode='markers', name='Data'))
-        fig.add_trace(go.Scatter(x=df_s['Year'], y=y_lin, mode='lines', name=f'Linear (R²={r2_lin:.4f})', line=dict(dash='dash')))
-        fig.add_trace(go.Scatter(x=df_s['Year'], y=y_quad, mode='lines', name=f'Quadratic (R²={r2_quad:.4f})'))
-        fig.add_trace(go.Scatter(x=df_s['Year'], y=y_exp, mode='lines', name=f'Exponential (R²={r2_exp:.4f})'))
+        fig.add_trace(go.Scatter(x=df_s['Year'], y=y, mode='markers', name='HDP per capita Data'))
+        fig.add_trace(go.Scatter(x=df_s['Year'], y=y_lin, mode='lines', name=f'Lineární HDP per capita (R²={r2_lin:.4f})', line=dict(dash='dash')))
+        fig.add_trace(go.Scatter(x=df_s['Year'], y=y_quad, mode='lines', name=f'Kvadratická HDP per capita (R²={r2_quad:.4f})'))
+        fig.add_trace(go.Scatter(x=df_s['Year'], y=y_exp, mode='lines', name=f'S-S Model HDP per capita (R²={r2_exp:.4f})'))
         
         st.plotly_chart(fig, use_container_width=True)
         
-        st.markdown("#### Rovnice modelů (Model Equations / 模型方程式)")
+        # st.markdown("#### Rovnice modelů (Model Equations / 模型方程式)") # 移除標題
         
-        # 1. 線性 (Linear)
+        # 1. Lineární (Linear)
         st.write(f"**1. Lineární (Linear):** ${eq_lin}$")
-        st.caption("Vysvětlení: Předpokládá se, že roční nárůst HDP je konstantní (přímka).")
+        st.caption("Vysvětlení: Předpokládá se, že roční nárůst HDP per capita je konstantní (přímka).")
         
-        # 2. 二次 (Quadratic)
+        # 2. Kvadratická (Quadratic)
         st.write(f"**2. Kvadratická (Quadratic):** ${eq_quad}$")
-        st.caption("Vysvětlení: Předpokládá se, že rychlost růstu se zrychluje nebo zpomaluje (parabola).")
+        st.caption("Vysvětlení: Předpokládá se, že rychlost růstu HDP per capita se zrychluje nebo zpomaluje (parabola).")
         
-        # 3. S-S 模型 (Exponential)
-        st.write(f"**3. Exponenciální (S-S Model):**")
+        # 3. Exponenciální (S-S Model HDP per capita)
+        st.write(f"**3. Exponenciální (S-S Model HDP per capita):**")
         st.write(f"- Logaritmická forma: ${eq_exp_log}$")
         st.write(f"- Exponenciální forma: ${eq_exp_real}$")
-        st.caption(f"Vysvětlení: Model Solow-Swan, předpokládá roční složený růst o pevné procento ($g={slope_exp:.2%}$).")
+        st.caption(f"Vysvětlení: Model Solow-Swan, předpokládá roční složený růst HDP per capita o pevné procento ($g={slope_exp:.2%}$).")
         
     else:
         st.write("Nedostatek dat.")
