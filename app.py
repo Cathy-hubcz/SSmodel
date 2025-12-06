@@ -439,30 +439,51 @@ with tab1:
     df_s = df_filtered[df_filtered['Country'] == c_single].sort_values('Year')
     
     if len(df_s) > 2:
-        X = df_s['Year'].values.reshape(-1, 1)
+        X_years = df_s['Year'].values
         y = df_s['GDP'].values
-        t = X - X.min()
         
-        # 1. Linear
-        mod_lin = LinearRegression().fit(t, y)
-        y_lin = mod_lin.predict(t)
+        # [修改點 1] 時間歸零校正: t 從 0, 1, 2... 開始
+        t = X_years - X_years.min() 
+        t_reshaped = t.reshape(-1, 1)
+
+        # 1. Linear (線性回歸)
+        mod_lin = LinearRegression().fit(t_reshaped, y)
+        y_lin = mod_lin.predict(t_reshaped)
         r2_lin = r2_score(y, y_lin)
-        eq_lin = f"y = {mod_lin.coef_[0]:.2f}x + {mod_lin.intercept_:.2f}"
         
-        # 2. Quadratic
+        # [修改點 2] 格式化方程式字串，處理正負號，使用 t 作為變數
+        sign_lin = "+" if mod_lin.intercept_ >= 0 else "-"
+        eq_lin = f"y = {mod_lin.coef_[0]:.2f}t {sign_lin} {abs(mod_lin.intercept_):.2f}"
+        
+        # 2. Quadratic (二次回歸)
         poly = PolynomialFeatures(2)
-        X_poly = poly.fit_transform(t)
+        X_poly = poly.fit_transform(t_reshaped)
         mod_quad = LinearRegression().fit(X_poly, y)
         y_quad = mod_quad.predict(X_poly)
         r2_quad = r2_score(y, y_quad)
-        eq_quad = f"y = {mod_quad.coef_[2]:.2f}x² + {mod_quad.coef_[1]:.2f}x + {mod_quad.intercept_:.2f}"
         
-        # 3. Exponential
+        # 格式化二次方程式字串
+        sign_quad_1 = "+" if mod_quad.coef_[1] >= 0 else "-"
+        sign_quad_0 = "+" if mod_quad.intercept_ >= 0 else "-"
+        eq_quad = f"y = {mod_quad.coef_[2]:.2f}t² {sign_quad_1} {abs(mod_quad.coef_[1]):.2f}t {sign_quad_0} {abs(mod_quad.intercept_):.2f}"
+        
+        # 3. Exponential (S-S Model)
         y_log = np.log(y)
-        mod_exp = LinearRegression().fit(t, y_log)
-        y_exp = np.exp(mod_exp.predict(t))
+        mod_exp = LinearRegression().fit(t_reshaped, y_log)
+        y_exp = np.exp(mod_exp.predict(t_reshaped))
         r2_exp = r2_score(y, y_exp)
-        eq_exp = f"ln(y) = {mod_exp.coef_[0]:.4f}x + {mod_exp.intercept_:.4f}"
+        
+        # [修改點 3] 顯示 S-S 模型的兩種寫法
+        slope_exp = mod_exp.coef_[0]      # 這是成長率 (例如 0.05)
+        intercept_exp = mod_exp.intercept_ # 這是 ln(初始值)
+        
+        # 寫法 A: 對數形式 (ln(y) = gt + ln(A))
+        sign_exp_log = "+" if intercept_exp >= 0 else "-"
+        eq_exp_log = f"ln(y) = {slope_exp:.4f}t {sign_exp_log} {abs(intercept_exp):.4f}"
+        
+        # 寫法 B: 指數形式 (S-S 理論形式 y = A * e^gt)
+        A_0 = np.exp(intercept_exp) # 還原初始值
+        eq_exp_real = f"y = {A_0:.2f} \\cdot e^{{{slope_exp:.4f}t}}" # 使用 \cdot 和 {} 確保 LaTeX 顯示正確
         
         # Plot
         fig = go.Figure()
@@ -473,10 +494,21 @@ with tab1:
         
         st.plotly_chart(fig, use_container_width=True)
         
-        st.markdown("#### Rovnice modelů (Model Equations)")
-        st.write(f"**Lineární:** ${eq_lin}$")
-        st.write(f"**Kvadratická:** ${eq_quad}$")
-        st.write(f"**Exponenciální:** ${eq_exp}$")
+        st.markdown("#### Rovnice modelů (Model Equations / 模型方程式)")
+        
+        # 1. 線性 (Linear)
+        st.write(f"**1. Lineární (Linear):** ${eq_lin}$")
+        st.caption("Vysvětlení: Předpokládá se, že roční nárůst HDP je konstantní (přímka).")
+        
+        # 2. 二次 (Quadratic)
+        st.write(f"**2. Kvadratická (Quadratic):** ${eq_quad}$")
+        st.caption("Vysvětlení: Předpokládá se, že rychlost růstu se zrychluje nebo zpomaluje (parabola).")
+        
+        # 3. S-S 模型 (Exponential)
+        st.write(f"**3. Exponenciální (S-S Model):**")
+        st.write(f"- Logaritmická forma: ${eq_exp_log}$")
+        st.write(f"- Exponenciální forma: ${eq_exp_real}$")
+        st.caption(f"Vysvětlení: Model Solow-Swan, předpokládá roční složený růst o pevné procento ($g={slope_exp:.2%}$).")
         
     else:
         st.write("Nedostatek dat.")
