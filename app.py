@@ -9,10 +9,9 @@ from sklearn.metrics import r2_score
 import io
 
 # ==========================================
-# 1. 台灣數據 (Taiwan Data - Hardcoded)
+# 1. 台灣數據 (Taiwan Data - 您提供的精確數據)
 # ==========================================
-# 這是您提供的精確數據 (1971-2024)
-taiwan_data_str = """Year,GDP
+taiwan_data_csv = """Year,GDP
 1971,2068.34
 1972,2307.78
 1973,2556.12
@@ -69,10 +68,11 @@ taiwan_data_str = """Year,GDP
 2024,31127.85"""
 
 # ==========================================
-# 2. 資料處理函數
+# 2. World Bank 數據 (請將您的資料貼在下方引號中)
 # ==========================================
-def process_data(user_text_data):
-    """	1970	1971	1972	1973	1974	1975	1976	1977	1978	1979	1980	1981	1982	1983	1984	1985	1986	1987	1988	1989	1990	1991	1992	1993	1994	1995	1996	1997	1998	1999	2000	2001	2002	2003	2004	2005	2006	2007	2008	2009	2010	2011	2012	2013	2014	2015	2016	2017	2018	2019	2020	2021	2022	2023	2024
+# 格式說明：第一列必須包含 "Country" 字樣。
+# 資料應該是用 Tab 分隔 (直接從 Excel 或網頁複製貼上即可)
+raw_data_str = """Country Name	1970	1971	1972	1973	1974	1975	1976	1977	1978	1979	1980	1981	1982	1983	1984	1985	1986	1987	1988	1989	1990	1991	1992	1993	1994	1995	1996	1997	1998	1999	2000	2001	2002	2003	2004	2005	2006	2007	2008	2009	2010	2011	2012	2013	2014	2015	2016	2017	2018	2019	2020	2021	2022	2023	2024
 Aruba																	17354.42115	20407.62021	24143.17128	26573.64791	26609.38407	27358.02171	27662.20341	27798.35533	28563.23361	28479.64527	27701.05041	28526.09757	28387.12996	28351.3719	30199.66128	31169.79691	30662.32171	30651.94576	32192.79195	31249.27804	31038.88987	31759.8232	32097.04022	28157.14899	27324.55543	28037.86979	27341.22743	28668.72042	27914.84334	27458.22533	27719.50073	29671.13583	30334.11622	29576.80971	21947.99533	27469.00562	29917.12803	31178.47368	
 Africa Eastern and Southern	1366.133737	1399.984249	1398.457064	1420.769757	1454.643813	1432.595729	1424.552475	1400.327157	1379.58687	1376.270407	1408.591095	1420.50787	1379.891733	1337.860562	1341.556485	1300.097663	1290.42447	1301.850808	1318.629309	1316.453767	1281.502503	1245.542514	1184.338276	1145.082712	1136.575445	1154.874942	1186.072964	1200.468423	1190.267441	1190.171103	1196.929766	1207.229159	1221.245925	1224.806285	1259.135921	1301.661617	1350.730577	1402.259248	1424.162197	1398.077727	1431.211958	1449.8535	1436.27451	1457.672907	1475.739039	1479.61526	1472.69923	1472.971152	1471.438317	1463.437891	1383.724119	1409.040699	1421.797169	1412.625384	1416.250369
 Afghanistan																															308.3182697	277.1180514	338.1399736	346.0716271	338.6372739	363.6401414	367.7583117	410.7577289	417.6472826	488.8306525	542.8710305	525.4269828	568.9290215	580.6038333	575.1462458	565.5697304	563.8723367	562.7695741	553.1251517	557.8615332	527.8345545	408.6258552	377.6656271	378.0663031	
@@ -339,307 +339,230 @@ Yemen, Rep.																					1722.208068	1761.79476	1835.263718	1838.26526	18
 South Africa	5135.561503	5200.743218	5137.376924	5220.821766	5385.831337	5327.518435	5301.986396	5155.685759	5168.069303	5220.725057	5399.540679	5498.592034	5291.382611	5015.371424	5091.719364	4865.056941	4712.818695	4664.130116	4714.222842	4687.291052	4544.230232	4396.360695	4225.814328	4193.598261	4258.261847	4337.297297	4465.506499	4527.049924	4494.857112	4552.85008	4700.875555	4786.48245	4916.814981	5011.622232	5187.356834	5406.075814	5650.988318	5891.420694	6009.719631	5847.058111	5953.945065	6067.124827	6121.557839	6170.876709	6155.005895	6112.273825	6095.29506	6125.692051	6117.270141	6032.829726	5569.584833	5756.195494	5783.860904	5747.41965	5708.964422
 Zambia	1246.65383	1211.709727	1286.57717	1238.059133	1279.537073	1213.577218	1250.541503	1157.758144	1129.471635	1062.962931	1062.936002	1094.461959	1030.047182	977.75971	944.930594	931.8082636	910.9445424	908.6800428	939.5996794	905.7473802	878.589206	856.7617236	821.8501042	857.0396696	764.6394113	768.0352016	796.0180596	805.5324018	781.6633838	796.377986	804.4846342	822.0209353	833.0211775	863.6501907	895.4752585	929.0792559	968.563565	1013.085674	1053.586123	1110.719181	1183.417124	1208.464246	1258.789386	1280.770122	1299.012418	1295.877887	1303.575139	1308.768292	1321.250457	1301.18133	1228.735001	1269.108218	1298.84805	1330.859982	1346.276489
 Zimbabwe	1532.618924	1619.972906	1701.803438	1691.809286	1746.518454	1659.33569	1617.081515	1468.211853	1407.934456	1431.605555	1546.45357	1634.023754	1612.99727	1577.482482	1493.349388	1542.758444	1523.277474	1490.6779	1553.328549	1587.433903	1652.721499	1699.299894	1503.06638	1496.83096	1633.132433	1620.5924	1759.043273	1772.602709	1788.437634	1745.336248	1676.492453	1689.285246	1524.301891	1250.281759	1164.950291	1088.076995	1037.69395	986.6958163	802.6350294	896.457891	1055.669926	1184.32961	1359.458296	1367.120401	1380.549271	1386.418559	1377.639277	1422.19346	1471.39489	1356.838211	1230.191557	1311.531	1368.498418	1417.557759	1420.803172
-    """
+
+"""
+
+# ==========================================
+# 3. 資料處理邏輯 (Data Processing)
+# ==========================================
+def clean_currency(x):
+    if isinstance(x, str):
+        # 移除千分位逗號，處理空白
+        return pd.to_numeric(x.replace(',', '').strip(), errors='coerce')
+    return x
+
+@st.cache_data
+def load_data():
     # 1. 處理台灣資料
-    df_tw = pd.read_csv(io.StringIO(taiwan_data_str))
+    df_tw = pd.read_csv(io.StringIO(taiwan_data_csv))
     df_tw['Country'] = 'Taiwan'
     
-    # 2. 處理使用者貼上的 World Bank 資料 (如果是空的，只回傳台灣)
-    if not user_text_data or len(user_text_data.strip()) < 10:
-        return df_tw
-
+    # 2. 處理 World Bank 資料
     try:
-        # 嘗試讀取 Tab 分隔資料 (World Bank 預設格式)
-        # 關鍵：thousands=',' 處理 "11,900.58" 這種格式
-        df_wb = pd.read_csv(io.StringIO(user_text_data), sep='\t', thousands=',')
-        
-        # 如果欄位太少，可能是用逗號分隔的 CSV
-        if df_wb.shape[1] < 2:
-            df_wb = pd.read_csv(io.StringIO(user_text_data), sep=',', thousands=',')
+        # 嘗試讀取 Tab 分隔 (World Bank 預設)
+        if len(raw_data_str.strip()) > 50: # 確保有資料才讀
+            # 使用 engine='python' 比較能容忍格式錯誤
+            df_wb = pd.read_csv(io.StringIO(raw_data_str), sep='\t', engine='python')
+            
+            # 如果讀進來只有 1 欄，改用逗號分隔試試看
+            if df_wb.shape[1] < 2:
+                df_wb = pd.read_csv(io.StringIO(raw_data_str), sep=',', engine='python')
 
-        # 清洗：找出包含 'Country' 的欄位並重新命名
-        col_map = {c: 'Country' for c in df_wb.columns if 'Country' in str(c)}
-        df_wb = df_wb.rename(columns=col_map)
-        
-        if 'Country' not in df_wb.columns:
-            st.error("Chyba formátu dat: Sloupec 'Country' nenalezen. (資料格式錯誤：找不到 Country 欄位)")
-            return df_tw
-
-        # 找出年份欄位 (數字組成)
-        year_cols = [c for c in df_wb.columns if str(c).strip().isdigit()]
-        
-        # Melt (轉置: 寬表變長表)
-        df_melted = df_wb.melt(id_vars=['Country'], value_vars=year_cols, var_name='Year', value_name='GDP')
-        
-        # 轉換數值
-        df_melted['Year'] = pd.to_numeric(df_melted['Year'], errors='coerce')
-        # 移除貨幣符號、逗號等非數字字元
-        if df_melted['GDP'].dtype == object:
-             df_melted['GDP'] = df_melted['GDP'].astype(str).str.replace(',', '').str.replace('"', '').str.replace('$', '')
-        df_melted['GDP'] = pd.to_numeric(df_melted['GDP'], errors='coerce')
-        
-        df_melted = df_melted.dropna(subset=['GDP', 'Year'])
-        
-        # 合併台灣資料
-        df_final = pd.concat([df_melted, df_tw], ignore_index=True)
-        
-        # 確保年份排序
-        df_final = df_final.sort_values(['Country', 'Year'])
-        return df_final
-
+            # 找出 Country 欄位並改名
+            col_map = {c: 'Country' for c in df_wb.columns if 'Country' in str(c)}
+            df_wb = df_wb.rename(columns=col_map)
+            
+            # 找出年份欄位
+            year_cols = [c for c in df_wb.columns if str(c).strip().isdigit()]
+            
+            # Melt 轉置
+            df_melted = df_wb.melt(id_vars=['Country'], value_vars=year_cols, var_name='Year', value_name='GDP')
+            df_melted['Year'] = pd.to_numeric(df_melted['Year'], errors='coerce')
+            df_melted['GDP'] = df_melted['GDP'].apply(clean_currency)
+            df_melted = df_melted.dropna(subset=['GDP', 'Year'])
+            
+            # 3. 合併 World Bank + Taiwan
+            df_final = pd.concat([df_melted, df_tw], ignore_index=True)
+        else:
+            df_final = df_tw # 如果沒貼資料，只顯示台灣
+            
     except Exception as e:
-        st.error(f"Error processing data: {e}")
+        st.error(f"Chyba při načítání dat (Data Load Error): {e}")
         return df_tw
 
+    df_final['Year'] = df_final['Year'].astype(int)
+    df_final = df_final.sort_values(['Country', 'Year'])
+    return df_final
+
+df = load_data()
+
 # ==========================================
-# 3. Streamlit 介面設定
+# 4. Streamlit 介面
 # ==========================================
-st.set_page_config(layout="wide", page_title="Analýza růstu a konvergence")
+st.set_page_config(layout="wide", page_title="Hospodářská analýza")
 
-st.title("Analýza hospodářského růstu a konvergence (Economic Growth & Convergence)")
-st.markdown("---")
+st.title("Analýza hospodářského růstu a konvergence")
+st.markdown("### Analysis of Economic Growth and Convergence")
 
-# --- SIDEBAR (Boční panel / 側邊欄) ---
-st.sidebar.header("1. Vstup dat (Data Input / 資料輸入)")
+# --- Sidebar ---
+st.sidebar.header("Nastavení (Settings)")
 
-# 定義 Raw Data String 變數，讓使用者貼上
-# PASTE_YOUR_DATA_HERE
-raw_data_placeholder = """Paste your World Bank Data (Tab-separated) here..."""
-user_input = st.sidebar.text_area("Vložte data zde (Paste Excel/Text data):", height=150, help="貼上包含 Country 和年份的數據")
+all_countries = sorted(df['Country'].unique())
+default_sel = ['Taiwan', 'Korea, Rep.', 'Czechia', 'Singapore'] 
+valid_sel = [c for c in default_sel if c in all_countries]
+if not valid_sel and all_countries: valid_sel = [all_countries[0]]
 
-# 載入並處理資料
-df_all = process_data(user_input)
-
-# 取得所有國家列表
-all_countries = sorted(df_all['Country'].unique())
-
-# 預設選取國家
-default_selection = ['Taiwan', 'Korea, Rep.', 'Czechia', 'Singapore']
-# 過濾掉資料中不存在的預設國家
-valid_defaults = [c for c in default_selection if c in all_countries]
-# 如果預設的都沒找到，就選前三個
-if not valid_defaults and len(all_countries) > 0:
-    valid_defaults = all_countries[:3]
-
-st.sidebar.header("2. Nastavení (Settings / 設定)")
 selected_countries = st.sidebar.multiselect(
-    "Vyberte země (Select Countries / 選擇國家):",
-    options=all_countries,
-    default=valid_defaults
+    "Vyberte země (Select Countries):",
+    all_countries,
+    default=valid_sel
 )
 
-# 年份滑桿
-min_year = int(df_all['Year'].min())
-max_year = int(df_all['Year'].max())
-year_range = st.sidebar.slider(
-    "Rozsah let (Year Range / 年份範圍):",
-    min_value=min_year,
-    max_value=max_year,
-    value=(2005, 2024) # 預設改為您提到的 2005-2024 以符合 PPT
-)
+min_y = int(df['Year'].min())
+max_y = int(df['Year'].max())
+year_range = st.sidebar.slider("Rozsah let (Year Range):", min_y, max_y, (2005, 2024))
 
-# 過濾資料
-df_filtered = df_all[
-    (df_all['Country'].isin(selected_countries)) & 
-    (df_all['Year'] >= year_range[0]) & 
-    (df_all['Year'] <= year_range[1])
-]
-
-if df_filtered.empty:
-    st.warning("Žádná data k zobrazení. Zkontrolujte výběr. (無數據顯示，請檢查選擇)")
+if not selected_countries:
+    st.error("Vyberte prosím alespoň jednu zemi.")
     st.stop()
 
-# ==========================================
-# 4. 主內容 (Tabs)
-# ==========================================
-tab1, tab2 = st.tabs(["Jedna země (Single Country / 單一國家模型)", "Konvergence (Convergence / 收斂分析)"])
+df_filtered = df[(df['Country'].isin(selected_countries)) & (df['Year'] >= year_range[0]) & (df['Year'] <= year_range[1])]
 
-# --- TAB 1: Solow-Swan & Trends ---
+# --- Tabs ---
+tab1, tab2 = st.tabs(["Jedna země (Single Country)", "Konvergence (Convergence)"])
+
+# --- TAB 1: Single Country ---
 with tab1:
-    st.subheader("Analýza trendů HDP (GDP Trends / GDP 趨勢分析)")
+    st.header("Analýza trendů HDP")
+    c_single = st.selectbox("Vyberte zemi:", selected_countries)
     
-    col1, col2 = st.columns([1, 3])
-    with col1:
-        target_country = st.selectbox("Vyberte zemi pro detail (Select Country / 選擇單一國家):", selected_countries)
+    df_s = df_filtered[df_filtered['Country'] == c_single].sort_values('Year')
     
-    # 準備單一國家資料
-    df_one = df_filtered[df_filtered['Country'] == target_country].sort_values('Year')
-    
-    if len(df_one) > 2:
-        X = df_one['Year'].values.reshape(-1, 1)
-        y = df_one['GDP'].values
+    if len(df_s) > 2:
+        X = df_s['Year'].values.reshape(-1, 1)
+        y = df_s['GDP'].values
+        t = X - X.min()
         
-        # 1. 線性回歸 (Linear) y = ax + b
-        model_lin = LinearRegression().fit(X, y)
-        y_pred_lin = model_lin.predict(X)
-        r2_lin = r2_score(y, y_pred_lin)
-        eq_lin = f"y = {model_lin.coef_[0]:.2f}x + ({model_lin.intercept_:.2f})"
-
-        # 2. 二次式回歸 (Quadratic) y = ax^2 + bx + c
-        poly = PolynomialFeatures(degree=2)
-        X_poly = poly.fit_transform(X)
-        model_quad = LinearRegression().fit(X_poly, y)
-        y_pred_quad = model_quad.predict(X_poly)
-        r2_quad = r2_score(y, y_pred_quad)
-        # coef_[2] is a (x^2), coef_[1] is b (x)
-        eq_quad = f"y = {model_quad.coef_[2]:.4f}x^2 + {model_quad.coef_[1]:.2f}x + {model_quad.intercept_:.2f}"
-
-        # 3. 指數回歸 (Exponential / Solow-Swan proxy) ln(y) = ax + b -> y = e^(ax+b)
+        # 1. Linear
+        mod_lin = LinearRegression().fit(t, y)
+        y_lin = mod_lin.predict(t)
+        r2_lin = r2_score(y, y_lin)
+        eq_lin = f"y = {mod_lin.coef_[0]:.2f}x + {mod_lin.intercept_:.2f}"
+        
+        # 2. Quadratic
+        poly = PolynomialFeatures(2)
+        X_poly = poly.fit_transform(t)
+        mod_quad = LinearRegression().fit(X_poly, y)
+        y_quad = mod_quad.predict(X_poly)
+        r2_quad = r2_score(y, y_quad)
+        eq_quad = f"y = {mod_quad.coef_[2]:.2f}x² + {mod_quad.coef_[1]:.2f}x + {mod_quad.intercept_:.2f}"
+        
+        # 3. Exponential
         y_log = np.log(y)
-        model_exp = LinearRegression().fit(X, y_log)
-        y_pred_log = model_exp.predict(X)
-        y_pred_exp = np.exp(y_pred_log)
-        r2_exp = r2_score(y, y_pred_exp) # Calculate R2 on original scale
-        eq_exp = f"ln(y) = {model_exp.coef_[0]:.4f}x + ({model_exp.intercept_:.4f})"
-
-        # --- 繪圖 (Plotly) ---
+        mod_exp = LinearRegression().fit(t, y_log)
+        y_exp = np.exp(mod_exp.predict(t))
+        r2_exp = r2_score(y, y_exp)
+        eq_exp = f"ln(y) = {mod_exp.coef_[0]:.4f}x + {mod_exp.intercept_:.4f}"
+        
+        # Plot
         fig = go.Figure()
-        # 實際數據
-        fig.add_trace(go.Scatter(x=df_one['Year'], y=df_one['GDP'], mode='markers', name='Data (Skutečnost)', marker=dict(size=8, color='black')))
-        # 線性
-        fig.add_trace(go.Scatter(x=df_one['Year'], y=y_pred_lin, mode='lines', name=f'Linear (Lineární): R²={r2_lin:.4f}', line=dict(dash='dash', color='blue')))
-        # 二次
-        fig.add_trace(go.Scatter(x=df_one['Year'], y=y_pred_quad, mode='lines', name=f'Quadratic (Kvadratický): R²={r2_quad:.4f}', line=dict(color='red')))
-        # 指數
-        fig.add_trace(go.Scatter(x=df_one['Year'], y=y_pred_exp, mode='lines', name=f'Exponential (Exponenciální): R²={r2_exp:.4f}', line=dict(dash='dot', color='green')))
-
-        fig.update_layout(
-            title=f"Vývoj HDP: {target_country} (GDP Evolution / GDP 演變)",
-            xaxis_title="Rok (Year)",
-            yaxis_title="HDP na obyvatele (GDP per capita)",
-            legend=dict(yanchor="top", y=0.99, xanchor="left", x=0.01)
-        )
+        fig.add_trace(go.Scatter(x=df_s['Year'], y=y, mode='markers', name='Data'))
+        fig.add_trace(go.Scatter(x=df_s['Year'], y=y_lin, mode='lines', name=f'Linear (R²={r2_lin:.4f})', line=dict(dash='dash')))
+        fig.add_trace(go.Scatter(x=df_s['Year'], y=y_quad, mode='lines', name=f'Quadratic (R²={r2_quad:.4f})'))
+        fig.add_trace(go.Scatter(x=df_s['Year'], y=y_exp, mode='lines', name=f'Exponential (R²={r2_exp:.4f})'))
+        
         st.plotly_chart(fig, use_container_width=True)
-
-        # --- 顯示方程式與分析 ---
-        st.markdown("#### Statistická analýza (Statistical Analysis / 統計分析)")
-        st.info(
-            f"""
-            **Rovnice regresních modelů (Regression Equations / 回歸方程式):**
-            
-            1. **Lineární (Linear / 線性):** ${eq_lin}$ ($R^2 = {r2_lin:.4f}$)
-            2. **Kvadratický (Quadratic / 二次式):** ${eq_quad}$ ($R^2 = {r2_quad:.4f}$)
-               * (Poznámka: Kvadratický model lépe zachycuje zpomalení nebo zrychlení růstu. / Chinese: 二次式更能捕捉成長減緩或加速的趨勢)
-            3. **Exponenciální (S-S Model Path):** ${eq_exp}$ ($R^2 = {r2_exp:.4f}$)
-            """
-        )
-
+        
+        st.markdown("#### Rovnice modelů (Model Equations)")
+        st.write(f"**Lineární:** ${eq_lin}$")
+        st.write(f"**Kvadratická:** ${eq_quad}$")
+        st.write(f"**Exponenciální:** ${eq_exp}$")
+        
     else:
-        st.write("Nedostatek dat pro regresi (Not enough data / 數據不足).")
+        st.write("Nedostatek dat.")
 
 # --- TAB 2: Convergence ---
 with tab2:
-    st.header("Analýza konvergence (Convergence Analysis / 收斂分析)")
+    st.header("Analýza konvergence")
     
-    # 資料準備 for Beta Convergence
-    # 邏輯：取每個國家在 "選定時間範圍" 的 "第一年" 與 "最後一年"
-    convergence_data = []
+    # Beta Convergence
+    st.subheader("1. Beta Konvergence")
     
-    # 確保我們只使用選擇範圍內的數據
-    start_year = year_range[0]
-    end_year = year_range[1]
+    beta_list = []
+    start_y_val = year_range[0]
+    end_y_val = year_range[1]
     
-    st.caption(f"**Analyzované období (Period / 分析期間):** {start_year} - {end_year}")
-    st.caption(f"**Vybrané země (Countries / 選擇國家):** {', '.join(selected_countries)}")
-
-    for country in selected_countries:
-        # 取出該國在範圍內的數據
-        c_data = df_filtered[df_filtered['Country'] == country].sort_values('Year')
-        
-        # 必須要有頭尾年份的資料
-        row_start = c_data[c_data['Year'] == start_year]
-        row_end = c_data[c_data['Year'] == end_year]
+    for c in selected_countries:
+        c_df = df[df['Country'] == c]
+        row_start = c_df[c_df['Year'] == start_y_val]
+        row_end = c_df[c_df['Year'] == end_y_val]
         
         if not row_start.empty and not row_end.empty:
             y0 = row_start.iloc[0]['GDP']
             yT = row_end.iloc[0]['GDP']
-            T = end_year - start_year
+            T = end_y_val - start_y_val
             
             if T > 0 and y0 > 0 and yT > 0:
-                # 成長率計算公式: (ln(yT) - ln(y0)) / T
-                growth_rate = (np.log(yT) - np.log(y0)) / T
-                ln_initial = np.log(y0)
-                convergence_data.append({
-                    'Country': country,
-                    'ln_Init': ln_initial,
-                    'Growth': growth_rate,
-                    'GDP_Start': y0,
-                    'GDP_End': yT
-                })
+                g = (np.log(yT) - np.log(y0)) / T
+                beta_list.append({'Country': c, 'ln_Init': np.log(y0), 'Growth': g})
     
-    df_conv = pd.DataFrame(convergence_data)
-
-    # === Beta Convergence Plot ===
-    col_beta, col_sigma = st.columns(2)
-    
-    with col_beta:
-        st.subheader("β-Konvergence (Beta Convergence)")
-        if len(df_conv) > 1:
-            # 回歸
-            X_beta = df_conv['ln_Init'].values.reshape(-1, 1)
-            y_beta = df_conv['Growth'].values
-            
-            model_beta = LinearRegression().fit(X_beta, y_beta)
-            slope = model_beta.coef_[0]
-            intercept = model_beta.intercept_
-            r2_beta = r2_score(y_beta, model_beta.predict(X_beta))
-            
-            eq_beta_str = f"y = {slope:.5f}x + {intercept:.5f}"
-            
-            # 判斷收斂
-            convergence_text = "Konvergence (Convergence / 收斂) ✅" if slope < 0 else "Divergence (Rozbíhavost / 發散) ❌"
-            color_res = "green" if slope < 0 else "red"
-
-            # 繪圖
-            fig_beta = px.scatter(df_conv, x='ln_Init', y='Growth', text='Country',
-                                  labels={'ln_Init': 'ln(Počáteční HDP) / ln(Initial GDP)', 'Growth': 'Průměrný růst / Avg Growth'})
-            
-            # 畫回歸線
-            x_range = np.linspace(df_conv['ln_Init'].min(), df_conv['ln_Init'].max(), 100).reshape(-1, 1)
-            y_range = model_beta.predict(x_range)
-            fig_beta.add_trace(go.Scatter(x=x_range.flatten(), y=y_range, mode='lines', name='Regression Line'))
-            
-            fig_beta.update_traces(textposition='top center')
-            fig_beta.update_layout(showlegend=False)
-            st.plotly_chart(fig_beta, use_container_width=True)
-            
-            st.markdown(f"**Výsledek (Result / 結果):** :{color_res}[{convergence_text}]")
-            st.markdown(f"**Rovnice (Equation):** ${eq_beta_str}$")
-            st.markdown(f"**R²:** {r2_beta:.4f}")
-            st.caption("Poznámka: Záporný sklon (slope) znamená, že chudší země rostou rychleji. (中文註記: 斜率為負代表貧窮國家成長較快，存在追趕效應)")
-            
+    if len(beta_list) > 1:
+        df_b = pd.DataFrame(beta_list)
+        X_b = df_b['ln_Init'].values.reshape(-1, 1)
+        y_b = df_b['Growth'].values
+        
+        mod_b = LinearRegression().fit(X_b, y_b)
+        slope = mod_b.coef_[0]
+        intercept = mod_b.intercept_
+        r2_b = r2_score(y_b, mod_b.predict(X_b))
+        
+        eq_b = f"y = {slope:.4f}x + {intercept:.4f}"
+        
+        fig_b = px.scatter(df_b, x='ln_Init', y='Growth', text='Country',
+                           title=f"Beta Konvergence (Slope: {slope:.5f})",
+                           labels={'ln_Init': 'ln(GDP start)', 'Growth': 'Avg Growth'})
+        
+        # Add Trendline
+        x_range = np.linspace(df_b['ln_Init'].min(), df_b['ln_Init'].max(), 100).reshape(-1, 1)
+        y_range = mod_b.predict(x_range)
+        fig_b.add_trace(go.Scatter(x=x_range.flatten(), y=y_range, mode='lines', name='Regrese', line=dict(color='red')))
+        
+        # Add Equation
+        fig_b.add_annotation(
+            x=0.95, y=0.95, xref="paper", yref="paper",
+            text=f"<b>{eq_b}<br>R²={r2_b:.4f}</b>",
+            showarrow=False, font=dict(size=14, color="red"), bgcolor="white"
+        )
+        
+        st.plotly_chart(fig_b, use_container_width=True)
+        
+        if slope < 0:
+            st.success("Konvergence potvrzena (Convergence confirmed).")
         else:
-            st.warning("Nedostatek zemí pro výpočet konvergence (alespoň 2). (需至少兩個國家)")
-
-    # === Sigma Convergence Plot ===
-    with col_sigma:
-        st.subheader("σ-Konvergence (Sigma Convergence)")
-        # 計算每年的 std(ln(GDP))
-        sigma_data = []
-        years_list = sorted(df_filtered['Year'].unique())
-        
-        for yr in years_list:
-            sub = df_filtered[df_filtered['Year'] == yr]
-            if len(sub) > 1:
-                std_log = np.std(np.log(sub['GDP']))
-                cv = np.std(sub['GDP']) / np.mean(sub['GDP']) # 變異係數
-                sigma_data.append({'Year': yr, 'Sigma': std_log, 'CV': cv})
-        
-        df_sigma = pd.DataFrame(sigma_data)
-        
-        if not df_sigma.empty:
-            fig_sigma = px.line(df_sigma, x='Year', y='Sigma', markers=True,
-                                labels={'Sigma': 'Směrodatná odchylka ln(HDP) / StdDev ln(GDP)'})
-            fig_sigma.update_layout(title="Nerovnost v čase (Inequality over Time)")
-            st.plotly_chart(fig_sigma, use_container_width=True)
-            st.caption("Klesající křivka znamená snižování nerovnosti mezi zeměmi. (中文註記: 曲線下降代表國家間貧富差距縮小)")
-        else:
-            st.write("Nedostatek dat.")
+            st.warning("Divergence.")
             
-    # === Coefficient of Variation (CV) ===
+    else:
+        st.warning("Nedostatek dat (Potřeba min. 2 země s daty pro vybrané roky).")
+
     st.markdown("---")
-    st.subheader("Variační koeficient (Coefficient of Variation /變異係數)")
-    if not df_sigma.empty:
-        fig_cv = px.line(df_sigma, x='Year', y='CV', markers=True, color_discrete_sequence=['orange'])
-        fig_cv.update_layout(yaxis_title="CV (StdDev / Mean)")
+    
+    # Sigma Convergence (CV)
+    st.subheader("2. Sigma Konvergence (CV)")
+    
+    cv_data = []
+    years_cv = sorted(df_filtered['Year'].unique())
+    
+    for y in years_cv:
+        sub = df_filtered[df_filtered['Year'] == y]
+        if len(sub) > 1:
+            mean = sub['GDP'].mean()
+            std = sub['GDP'].std()
+            if mean > 0:
+                cv_data.append({'Year': y, 'CV': std/mean})
+    
+    if cv_data:
+        df_cv = pd.DataFrame(cv_data)
+        fig_cv = px.line(df_cv, x='Year', y='CV', title="Sigma Konvergence (Coefficient of Variation)", markers=True)
         st.plotly_chart(fig_cv, use_container_width=True)
+    else:
+        st.write("Nedostatek dat.")
