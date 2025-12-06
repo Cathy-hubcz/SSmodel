@@ -11,6 +11,9 @@ import statsmodels.api as sm
 
 # ==========================================
 # 1. 台灣數據 (Taiwan Data - 您提供的精確數據)
+
+# 台灣數據 CSV
+taiwan_data_csv = """
 # ==========================================
 taiwan_data_csv = """Year,GDP
 1971,2068.34
@@ -357,6 +360,14 @@ def load_data():
     df_tw = pd.read_csv(io.StringIO(taiwan_data_csv))
     df_tw['Country'] = 'Taiwan'
     
+    # 為了 S-S 模型計算 ln(bazických indexů) = ln(GDP_t / GDP_1971)
+    df_tw = df_tw.sort_values('Year')
+    gdp_1971 = df_tw[df_tw['Year'] == 1971]['GDP'].iloc[0]
+    if gdp_1971 > 0:
+        df_tw['ln_Base_Index'] = np.log(df_tw['GDP'] / gdp_1971)
+    else:
+        df_tw['ln_Base_Index'] = np.nan
+    
     # 2. 處理 World Bank 資料
     try:
         # 嘗試讀取 Tab 分隔 (World Bank 預設)
@@ -468,21 +479,55 @@ with tab1:
         eq_quad = f"y = {mod_quad.coef_[2]:.2f}t² {sign_quad_1} {abs(mod_quad.coef_[1]):.2f}t {sign_quad_0} {abs(mod_quad.intercept_):.2f}"
         
         # 3. Exponential (S-S Model)
-        y_log = np.log(y)
-        mod_exp = LinearRegression().fit(t_reshaped, y_log)
-        y_exp = np.exp(mod_exp.predict(t_reshaped))
-        r2_exp = r2_score(y, y_exp)
         
-        # [修改點 3] 顯示 S-S 模型的兩種寫法
-        slope_exp = mod_exp.coef_[0]      # 這是成長率 (例如 0.05)
-        intercept_exp = mod_exp.intercept_ # 這是 ln(初始值)
-        
-        # 寫法 A: 對數形式 (ln(y) = gt + ln(A))
-        sign_exp_log = "+" if intercept_exp >= 0 else "-"
-        eq_exp_log = f"ln(y) = {slope_exp:.4f}t {sign_exp_log} {abs(intercept_exp):.4f}"
-        
+        # --- 針對台灣的特殊處理：使用 ln(bazických indexů) 進行迴歸 ---
+        if c_single == 'Taiwan' and 'ln_Base_Index' in df_s.columns:
+            # 迴歸因變數：ln(GDP_t / GDP_1971)
+            y_log = df_s['ln_Base_Index'].values
+            
+            # 迴歸自變數：時間 t，從 1971 年開始，t=0
+            # 由於 t 已經在前面計算為 t = X_years - X_years.min()，且 X_years.min() = 1971，所以 t 已經是從 0 開始
+            
+            mod_exp = LinearRegression().fit(t_reshaped, y_log)
+            
+            # 提取係數
+            slope_exp = mod_exp.coef_[0]      # 成長率 g
+            intercept_exp = mod_exp.intercept_ # ln(A0)
+            
+            # 初始值 A0 應該是 ln(GDP_1971 / GDP_1971) = ln(1) = 0
+            # 但迴歸得到的截距是 ln(A0)，所以 A0 = exp(intercept_exp)
+            # 為了匹配 Excel 範例，我們將 A0 設為 1971 年的 GDP 值
+            A_0 = df_s[df_s['Year'] == df_s['Year'].min()]['GDP'].iloc[0]
+            
+            # 重新計算 y_exp 和 R2
+            # 預測 ln(GDP_t / GDP_1971)
+            y_log_pred = mod_exp.predict(t_reshaped)
+            
+            # 預測 GDP_t = GDP_1971 * exp(y_log_pred)
+            gdp_1971 = df_s[df_s['Year'] == df_s['Year'].min()]['GDP'].iloc[0]
+            y_exp = gdp_1971 * np.exp(y_log_pred)
+            
+            r2_exp = r2_score(y, y_exp)
+            
+            # 寫法 A: 對數形式 (ln(y/y0) = gt + ln(A))
+            sign_exp_log = "+" if intercept_exp >= 0 else "-"
+            eq_exp_log = f"ln(y/y_{df_s['Year'].min()}) = {slope_exp:.4f}t {sign_exp_log} {abs(intercept_exp):.4f}"
+            
+        # --- 其他國家或台灣使用標準 ln(GDP) 迴歸 ---
+        else:
+            y_log = np.log(y)
+            mod_exp = LinearRegression().fit(t_reshaped, y_log)
+            y_exp = np.exp(mod_exp.predict(t_reshaped))
+            r2_exp = r2_score(y, y_exp)
+            slope_exp = mod_exp.coef_[0]
+            intercept_exp = mod_exp.intercept_
+            A_0 = np.exp(intercept_exp)
+            
+            # 寫法 A: 對數形式 (ln(y) = gt + ln(A))
+            sign_exp_log = "+" if intercept_exp >= 0 else "-"
+            eq_exp_log = f"ln(y) = {slope_exp:.4f}t {sign_exp_log} {abs(intercept_exp):.4f}"
+            
         # 寫法 B: 指數形式 (S-S 理論形式 y = A * e^gt)
-        A_0 = np.exp(intercept_exp) # 還原初始值
         # 為了與 Excel 範例的格式 y = 2068.3e0.0577x 一致，移除 \cdot 和 {}
         eq_exp_real = f"y = {A_0:.4g}e^{{{slope_exp:.4f}t}}" # 使用 .4g 確保數字精度，並使用 t 作為變數
         
