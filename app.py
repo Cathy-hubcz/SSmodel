@@ -524,13 +524,13 @@ def get_trendline_analysis(df, x_col, y_col, title_prefix):
         xanchor='right', yanchor='top'
     )
     
-    # 文字分析
+    # Analýza textu (Text Analysis)
     if slope < 0:
-        analysis = f"**文字分析 (Text Analysis):** 趨勢線斜率為 **{slope:.4f}** (負值)，表示隨著時間的推移，選定國家/地區的 {title_prefix} **正在收斂** (Sigma-konvergence)。這意味著它們之間的經濟差異正在縮小。"
+        analysis = f"Sklon trendové čáry je **{slope:.4f}** (záporný). To naznačuje **konvergenci** ({title_prefix} se zmenšuje), což znamená, že ekonomické rozdíly mezi vybranými zeměmi se zmenšují."
     elif slope > 0:
-        analysis = f"**文字分析 (Text Analysis):** 趨勢線斜率為 **{slope:.4f}** (正值)，表示隨著時間的推移，選定國家/地區的 {title_prefix} **正在發散** (Divergence)。這意味著它們之間的經濟差異正在擴大。"
+        analysis = f"Sklon trendové čáry je **{slope:.4f}** (kladný). To naznačuje **divergenci** ({title_prefix} se zvětšuje), což znamená, že ekonomické rozdíly mezi vybranými zeměmi se zvětšují."
     else:
-        analysis = f"**文字分析 (Text Analysis):** 趨勢線斜率為 **{slope:.4f}** (接近零)，表示選定國家/地區的 {title_prefix} **保持穩定**，沒有明顯的收斂或發散趨勢。"
+        analysis = f"Sklon trendové čáry je **{slope:.4f}** (blízký nule). To naznačuje **stabilitu** ({title_prefix} se nemění), což znamená, že ekonomické rozdíly mezi vybranými zeměmi zůstávají stabilní."
         
     return fig, analysis
 
