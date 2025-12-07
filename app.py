@@ -1,428 +1,159 @@
-1242.46	1313.24	1379.79	1455.55	1566.20	1638.11	1692.83	1688.57	1689.54	1652.76	1587.20	1571.42	1638.62	1677.30	1767.07	1797.26
+import streamlit as st
+import pandas as pd
+import numpy as np
+import io
+from sklearn.linear_model import LinearRegression
+from sklearn.preprocessing import PolynomialFeatures
+from sklearn.metrics import r2_score
+import plotly.graph_objects as go
+import plotly.express as px
+
+# 1. Taiwan Data
+taiwan_data_csv = """Year,GDP
+2000,14908
+2001,13397
+2002,13686
+2003,14066
+2004,15317
+2005,16456
+2006,16934
+2007,17757
+2008,18081
+2009,16933
+2010,19197
+2011,20866
+2012,21295
+2013,21973
+2014,22874
+2015,22780
+2016,23091
+2017,25080
+2018,25838
+2019,25909
+2020,28383
+2021,33004
+2022,32756
+2023,32339
+2024,34430
+"""
+
+# 2. World Bank Data (Placeholder - PASTE YOUR FULL DATA INSIDE THE QUOTES)
+# Ensure it starts with """ and ends with """
+raw_data_str = """Country Name	2000	2001	2002	2003	2004	2005	2006	2007	2008	2009	2010	2011	2012	2013	2014	2015	2016	2017	2018	2019	2020	2021	2022	2023	2024
+Czechia	6032.20	5753.13	5768.80	5982.68	6333.35	6631.84	6792.74	6983.36	7127.70	7450.85	7730.94	8057.21	8405.62	8923.84	9387.58	10036.52	10712.60	11177.01	10792.84	10998.67	11421.82	11544.55	11662.02	12076.20	12596.95
+Korea, Rep.	12257.00	11561.00	12792.00	14039.00	15438.00	16870.00	18356.00	19876.00	18340.00	16632.00	20540.00	22489.00	22807.00	23842.00	25052.00	25082.00	25906.00	27608.00	29242.00	28675.00	28422.00	31296.00	29433.00	30058.00	31000.00
+Singapore	23793.00	21577.00	22016.00	23573.00	27405.00	29870.00	33390.00	39224.00	39722.00	38578.00	46570.00	53094.00	54452.00	55618.00	56007.00	53630.00	53880.00	57714.00	62837.00	62422.00	58063.00	67855.00	72794.00	74609.00	76000.00
 """
 
 # ==========================================
-# 3. Data Processing Logic
+# 3. Data Processing
 # ==========================================
-
 def clean_currency(x):
-    """Cleans currency strings by removing commas and converting to float."""
     if isinstance(x, str):
-        # Remove thousands separators and whitespace
-        clean_str = x.replace(',', '').strip()
-        return pd.to_numeric(clean_str, errors='coerce')
+        return pd.to_numeric(x.replace(',', '').strip(), errors='coerce')
     return x
 
 @st.cache_data
 def load_data():
-    """Loads and merges Taiwan data and World Bank data."""
-    
-    # 1. Process Taiwan Data
-    # Use the placeholder CSV defined at the top of the file
     try:
+        # Load Taiwan
         df_tw = pd.read_csv(io.StringIO(taiwan_data_csv))
         df_tw['Country'] = 'Taiwan'
-        
-        # Calculate ln(base index) for S-S model if needed: ln(GDP_t / GDP_1971)
-        df_tw = df_tw.sort_values('Year')
-        # Find 1971 data if available, otherwise use the first available year
-        base_data = df_tw[df_tw['Year'] == 1971]
-        if not base_data.empty:
-            gdp_base = base_data['GDP'].iloc[0]
-            if gdp_base > 0:
-                df_tw['ln_Base_Index'] = np.log(df_tw['GDP'] / gdp_base)
-            else:
-                df_tw['ln_Base_Index'] = np.nan
-        else:
-            # Fallback if 1971 is missing
-            df_tw['ln_Base_Index'] = np.nan
-            
-    except Exception as e:
-        st.error(f"Error parsing Taiwan data: {e}")
-        # Create an empty dataframe structure if parsing fails
-        df_tw = pd.DataFrame(columns=['Year', 'GDP', 'Country', 'ln_Base_Index'])
+        df_tw['GDP'] = pd.to_numeric(df_tw['GDP'], errors='coerce')
+    except Exception:
+        df_tw = pd.DataFrame()
 
-    # 2. Process World Bank Data
     try:
+        # Load World Bank
         if len(raw_data_str.strip()) > 50:
-            # Try reading as Tab-separated (standard World Bank format)
             df_wb = pd.read_csv(io.StringIO(raw_data_str), sep='\t', engine='python')
-            
-            # If that fails (only 1 column detected), try Comma-separated
             if df_wb.shape[1] < 2:
                 df_wb = pd.read_csv(io.StringIO(raw_data_str), sep=',', engine='python')
 
-            # Identify Country column
             col_map = {c: 'Country' for c in df_wb.columns if 'Country' in str(c)}
             df_wb = df_wb.rename(columns=col_map)
-            
-            # Identify Year columns (numeric headers)
             year_cols = [c for c in df_wb.columns if str(c).strip().isdigit()]
             
-            # Melt: Convert Wide format (Years as columns) to Long format (Year rows)
             df_melted = df_wb.melt(id_vars=['Country'], value_vars=year_cols, var_name='Year', value_name='GDP')
-            
-            # Clean data types
             df_melted['Year'] = pd.to_numeric(df_melted['Year'], errors='coerce')
             df_melted['GDP'] = df_melted['GDP'].apply(clean_currency)
-            
-            # Drop invalid rows
             df_melted = df_melted.dropna(subset=['GDP', 'Year'])
             
-            # 3. Combine Datasets
             df_final = pd.concat([df_melted, df_tw], ignore_index=True)
         else:
             df_final = df_tw
             
     except Exception as e:
-        st.error(f"Error parsing World Bank data: {e}")
+        st.error(f"Data Error: {e}")
         return df_tw
 
-    # Final cleanup
-    df_final['Year'] = df_final['Year'].astype(int)
-    df_final = df_final.sort_values(['Country', 'Year'])
+    if not df_final.empty:
+        df_final['Year'] = df_final['Year'].astype(int)
+        df_final = df_final.sort_values(['Country', 'Year'])
+        
     return df_final
 
-# Load data once
 df = load_data()
 
 # ==========================================
-# 4. Streamlit Interface
+# 4. App Interface
 # ==========================================
+st.title("Analýza hospodářského růstu")
 
-# Sidebar Settings
-st.sidebar.header("Nastavení (Settings)")
-
-# Get unique countries
-all_countries = sorted(df['Country'].unique())
-
-# Set default selection
-default_sel = ['Taiwan', 'Korea, Rep.', 'Czechia', 'Singapore', 'United States']
-valid_sel = [c for c in default_sel if c in all_countries]
-if not valid_sel and all_countries:
-    valid_sel = [all_countries[0]]
-
-selected_countries = st.sidebar.multiselect(
-    "Vyberte země (Select Countries):",
-    all_countries,
-    default=valid_sel
-)
-
-# Year Slider
-if not df.empty:
-    min_y = int(df['Year'].min())
-    max_y = int(df['Year'].max())
-else:
-    min_y, max_y = 1970, 2024
-
-year_range = st.sidebar.slider("Rozsah let (Year Range):", min_y, max_y, (min_y, max_y))
-
-# Filter Data
-if not selected_countries:
-    st.warning("Please select at least one country.")
+if df.empty:
+    st.error("Žádná data k zobrazení.")
     st.stop()
 
-df_filtered = df[
-    (df['Country'].isin(selected_countries)) & 
-    (df['Year'] >= year_range[0]) & 
-    (df['Year'] <= year_range[1])
-]
+all_countries = sorted(df['Country'].unique())
+default_sel = ['Taiwan', 'Czechia']
+selected_countries = st.sidebar.multiselect("Země", all_countries, default=[c for c in default_sel if c in all_countries])
 
-# --- Main Layout ---
-st.title("Analýza hospodářského růstu a konvergence")
-st.markdown("### Economic Growth and Convergence Analysis")
+min_y, max_y = int(df['Year'].min()), int(df['Year'].max())
+year_range = st.sidebar.slider("Roky", min_y, max_y, (min_y, max_y))
 
-tab1, tab2 = st.tabs(["Jedna země (Single Country)", "Konvergence (Convergence)"])
+df_filtered = df[(df['Country'].isin(selected_countries)) & (df['Year'].between(year_range[0], year_range[1]))]
 
-# ==========================================
-# TAB 1: Single Country Analysis
-# ==========================================
+tab1, tab2 = st.tabs(["Jedna země", "Konvergence"])
+
 with tab1:
-    st.header("Analýza trendů HDP per capita")
-    
-    # Dropdown specifically for this tab
-    c_single = st.selectbox("Vyberte zemi pro detailní analýzu:", selected_countries)
-    
-    # Get specific country data
-    df_s = df_filtered[df_filtered['Country'] == c_single].sort_values('Year')
-    
-    if len(df_s) > 2:
-        X_years = df_s['Year'].values
-        y_gdp = df_s['GDP'].values
+    if selected_countries:
+        c = st.selectbox("Vyber zemi", selected_countries)
+        dat = df_filtered[df_filtered['Country'] == c].sort_values('Year')
         
-        # Normalize time t starting from 0 for regression stability
-        # t = 0, 1, 2... corresponding to Year_min, Year_min+1...
-        t = X_years - X_years.min()
-        t_reshaped = t.reshape(-1, 1)
-
-        # --- Model 1: Linear (y = ax + b) ---
-        mod_lin = LinearRegression().fit(t_reshaped, y_gdp)
-        y_lin = mod_lin.predict(t_reshaped)
-        r2_lin = r2_score(y_gdp, y_lin)
-        
-        sign_lin = "+" if mod_lin.intercept_ >= 0 else "-"
-        eq_lin = f"y = {mod_lin.coef_[0]:.2f}t {sign_lin} {abs(mod_lin.intercept_):.2f}"
-        
-        # --- Model 2: Quadratic (y = ax^2 + bx + c) ---
-        poly = PolynomialFeatures(2)
-        X_poly = poly.fit_transform(t_reshaped)
-        mod_quad = LinearRegression().fit(X_poly, y_gdp)
-        y_quad = mod_quad.predict(X_poly)
-        r2_quad = r2_score(y_gdp, y_quad)
-        
-        # Coefficients: [intercept, linear, quadratic]
-        c0 = mod_quad.intercept_
-        c1 = mod_quad.coef_[1]
-        c2 = mod_quad.coef_[2]
-        
-        sign_q1 = "+" if c1 >= 0 else "-"
-        sign_q0 = "+" if c0 >= 0 else "-"
-        eq_quad = f"y = {c2:.2f}t\u00b2 {sign_q1} {abs(c1):.2f}t {sign_q0} {abs(c0):.2f}"
-        
-        # --- Model 3: Exponential / S-S (y = A * e^(gt)) ---
-        # Using Log-Linear transformation: ln(y) = ln(A) + gt
-        
-        # Safe log (handle zeros or negative GDP if any)
-        valid_idx = y_gdp > 0
-        if np.any(valid_idx):
-            y_gdp_log = y_gdp[valid_idx]
-            t_log = t_reshaped[valid_idx]
-            X_years_log = X_years[valid_idx]
+        if len(dat) > 1:
+            X = dat['Year'].values
+            y = dat['GDP'].values
             
-            y_log_val = np.log(y_gdp_log)
-            mod_exp = LinearRegression().fit(t_log, y_log_val)
+            # Linear Regression
+            X_reshaped = (X - X.min()).reshape(-1, 1)
+            model = LinearRegression().fit(X_reshaped, y)
+            y_pred = model.predict(X_reshaped)
+            r2 = r2_score(y, y_pred)
             
-            # Predict
-            y_log_pred = mod_exp.predict(t_log)
-            y_exp = np.exp(y_log_pred) # Convert back to normal scale
-            r2_exp = r2_score(y_gdp_log, y_exp)
-            
-            slope_g = mod_exp.coef_[0]      # Growth rate g
-            intercept_lnA = mod_exp.intercept_ # ln(A)
-            A_val = np.exp(intercept_lnA)
-            
-            sign_exp = "+" if intercept_lnA >= 0 else "-"
-            eq_exp_log = f"ln(y) = {slope_g:.4f}t {sign_exp} {abs(intercept_lnA):.4f}"
-            eq_exp_real = f"y = {A_val:.2f}e^({slope_g:.4f}t)"
-        else:
-            y_exp = np.zeros_like(y_gdp)
-            r2_exp = 0
-            eq_exp_log = "N/A"
-            eq_exp_real = "N/A"
-            X_years_log = X_years # fallback for plotting
-
-        # --- Plotting ---
-        fig = go.Figure()
-        
-        # Actual Data
-        fig.add_trace(go.Scatter(
-            x=X_years, y=y_gdp, mode='markers', name='Skutečná data (Actual)',
-            marker=dict(size=8, color='blue')
-        ))
-        
-        # Linear
-        fig.add_trace(go.Scatter(
-            x=X_years, y=y_lin, mode='lines', name=f'Lineární (R\u00b2={r2_lin:.3f})',
-            line=dict(dash='dash', color='green')
-        ))
-        
-        # Quadratic
-        fig.add_trace(go.Scatter(
-            x=X_years, y=y_quad, mode='lines', name=f'Kvadratický (R\u00b2={r2_quad:.3f})',
-            line=dict(color='orange')
-        ))
-        
-        # Exponential
-        if np.any(valid_idx):
-            fig.add_trace(go.Scatter(
-                x=X_years_log, y=y_exp, mode='lines', name=f'Exponenciální (R\u00b2={r2_exp:.3f})',
-                line=dict(dash='dot', color='red')
-            ))
-
-        fig.update_layout(title=f"HDP per capita: {c_single}", xaxis_title="Rok", yaxis_title="GDP")
-        st.plotly_chart(fig, use_container_width=True)
-        
-        # --- Statistics ---
-        st.markdown("#### Rovnice modelů (Equations)")
-        col1, col2, col3 = st.columns(3)
-        
-        with col1:
-            st.info(f"**Lineární**\n\n${eq_lin}$")
-        with col2:
-            st.warning(f"**Kvadratický**\n\n${eq_quad}$")
-        with col3:
-            st.error(f"**Exponenciální (S-S)**\n\n${eq_exp_real}$")
-            
-    else:
-        st.error("Nedostatek dat pro zvolenou zemi a období.")
-
-# ==========================================
-# TAB 2: Convergence Analysis
-# ==========================================
-def plot_trendline(df_in, x_col, y_col, title, label_y):
-    """Helper to calculate trendline and return figure and slope."""
-    if len(df_in) < 2:
-        return None, 0
-    
-    X = df_in[x_col].values.reshape(-1, 1)
-    y = df_in[y_col].values
-    
-    model = LinearRegression().fit(X, y)
-    y_pred = model.predict(X)
-    r2 = r2_score(y, y_pred)
-    slope = model.coef_[0]
-    intercept = model.intercept_
-    
-    eq = f"y = {slope:.5f}x + {intercept:.2f}"
-    
-    fig = px.scatter(df_in, x=x_col, y=y_col, title=f"{title} (Slope: {slope:.5f})", 
-                     text=df_in.get('Country', None)) # Use country labels if available
-    
-    # Add trendline trace
-    fig.add_trace(go.Scatter(
-        x=df_in[x_col], y=y_pred, mode='lines', name='Trend', line=dict(color='red')
-    ))
-    
-    # Annotation
-    fig.add_annotation(
-        x=0.05, y=0.95, xref="paper", yref="paper",
-        text=f"{eq}<br>R\u00b2={r2:.3f}", showarrow=False,
-        xanchor='left', bgcolor="white", opacity=0.8
-    )
-    
-    return fig, slope
+            fig = go.Figure()
+            fig.add_trace(go.Scatter(x=X, y=y, mode='markers', name='Data'))
+            fig.add_trace(go.Scatter(x=X, y=y_pred, mode='lines', name=f'Trend (R2={r2:.2f})'))
+            st.plotly_chart(fig)
+            st.write(f"Rovnice: y = {model.coef_[0]:.2f}x + {model.intercept_:.2f}")
 
 with tab2:
-    st.header("Analýza konvergence")
-    
-    # ---------------------------
-    # 1. Beta Convergence
-    # ---------------------------
-    st.subheader("1. Beta Konvergence")
-    st.markdown("Vztah mezi počátečním HDP (log) a průměrným růstem. **Záporný sklon = Konvergence**.")
-    
+    st.write("Beta Konvergence")
     beta_data = []
-    y_start = year_range[0]
-    y_end = year_range[1]
-    
     for c in selected_countries:
-        c_df = df[df['Country'] == c]
+        c_dat = df[df['Country'] == c]
+        r_start = c_dat[c_dat['Year'] == year_range[0]]
+        r_end = c_dat[c_dat['Year'] == year_range[1]]
         
-        # Get start and end values safely
-        row_start = c_df[c_df['Year'] == y_start]
-        row_end = c_df[c_df['Year'] == y_end]
-        
-        if not row_start.empty and not row_end.empty:
-            gdp_0 = row_start.iloc[0]['GDP']
-            gdp_T = row_end.iloc[0]['GDP']
-            
-            if gdp_0 > 0 and gdp_T > 0:
-                # Calculate Average Annual Growth Rate approx: (ln(yT) - ln(y0)) / T
-                T = y_end - y_start
-                if T > 0:
-                    growth = (np.log(gdp_T) - np.log(gdp_0)) / T
-                    beta_data.append({
-                        'Country': c,
-                        'ln_GDP_initial': np.log(gdp_0),
-                        'Avg_Growth': growth
-                    })
+        if not r_start.empty and not r_end.empty:
+            y0 = r_start.iloc[0]['GDP']
+            yT = r_end.iloc[0]['GDP']
+            if y0 > 0:
+                growth = (np.log(yT) - np.log(y0)) / (year_range[1] - year_range[0])
+                beta_data.append({'Country': c, 'ln_Init': np.log(y0), 'Growth': growth})
     
     if len(beta_data) > 1:
-        df_beta = pd.DataFrame(beta_data)
-        fig_beta, slope_beta = plot_trendline(df_beta, 'ln_GDP_initial', 'Avg_Growth', 'Beta Konvergence', 'Growth')
-        
-        if fig_beta:
-            st.plotly_chart(fig_beta, use_container_width=True)
-            if slope_beta < 0:
-                st.success(f"Sklon je {slope_beta:.5f} (Záporný) -> Konvergence potvrzena.")
-            else:
-                st.error(f"Sklon je {slope_beta:.5f} (Kladný) -> Divergence.")
+        b_df = pd.DataFrame(beta_data)
+        fig_b = px.scatter(b_df, x='ln_Init', y='Growth', text='Country', trendline='ols')
+        st.plotly_chart(fig_b)
     else:
-        st.warning("Nedostatek dat pro výpočet Beta konvergence (potřeba min. 2 země s daty v počátečním i koncovém roce).")
-
-    st.markdown("---")
-
-    # ---------------------------
-    # 2. Sigma Convergence
-    # ---------------------------
-    st.subheader("2. Sigma Konvergence (Std Dev logaritmů)")
-    st.markdown("Vývoj směrodatné odchylky logaritmů HDP v čase. **Klesající trend = Konvergence**.")
-    
-    sigma_data = []
-    # Loop through every year in the selected range
-    for yr in range(year_range[0], year_range[1] + 1):
-        # Slice data for that year across selected countries
-        sub = df_filtered[df_filtered['Year'] == yr]
-        
-        # We need at least 2 countries to calculate std dev
-        if len(sub) > 1:
-            # Calculate std dev of natural log of GDP
-            valid_gdp = sub[sub['GDP'] > 0]['GDP']
-            if len(valid_gdp) > 1:
-                std_log = np.std(np.log(valid_gdp))
-                sigma_data.append({'Year': yr, 'Sigma': std_log})
-                
-    if len(sigma_data) > 1:
-        df_sigma = pd.DataFrame(sigma_data)
-        # We can treat this as a line chart
-        fig_sigma = px.line(df_sigma, x='Year', y='Sigma', markers=True, title="Sigma Konvergence")
-        
-        # Add a simple trendline for visual aid
-        X_sig = df_sigma['Year'].values.reshape(-1, 1)
-        y_sig = df_sigma['Sigma'].values
-        mod_sig = LinearRegression().fit(X_sig, y_sig)
-        y_sig_pred = mod_sig.predict(X_sig)
-        
-        fig_sigma.add_trace(go.Scatter(x=df_sigma['Year'], y=y_sig_pred, mode='lines', name='Trend', line=dict(dash='dash', color='red')))
-        
-        st.plotly_chart(fig_sigma, use_container_width=True)
-        
-        slope_sigma = mod_sig.coef_[0]
-        if slope_sigma < 0:
-            st.success(f"Trend Sigmy je klesající ({slope_sigma:.5f}) -> Konvergence.")
-        else:
-            st.error(f"Trend Sigmy je rostoucí ({slope_sigma:.5f}) -> Divergence.")
-            
-    else:
-        st.warning("Nedostatek dat pro Sigma konvergenci.")
-
-    st.markdown("---")
-
-    # ---------------------------
-    # 3. CV Convergence
-    # ---------------------------
-    st.subheader("3. Variační Koeficient (CV)")
-    st.markdown("CV = Směrodatná odchylka / Průměr. **Klesající trend = Konvergence**.")
-    
-    cv_data = []
-    for yr in range(year_range[0], year_range[1] + 1):
-        sub = df_filtered[df_filtered['Year'] == yr]
-        if len(sub) > 1:
-            mean_gdp = sub['GDP'].mean()
-            std_gdp = sub['GDP'].std()
-            
-            if mean_gdp > 0:
-                cv = std_gdp / mean_gdp
-                cv_data.append({'Year': yr, 'CV': cv})
-                
-    if len(cv_data) > 1:
-        df_cv = pd.DataFrame(cv_data)
-        fig_cv = px.line(df_cv, x='Year', y='CV', markers=True, title="Vývoj Variačního Koeficientu")
-        
-        # Trendline
-        X_cv = df_cv['Year'].values.reshape(-1, 1)
-        y_cv = df_cv['CV'].values
-        mod_cv = LinearRegression().fit(X_cv, y_cv)
-        y_cv_pred = mod_cv.predict(X_cv)
-        
-        fig_cv.add_trace(go.Scatter(x=df_cv['Year'], y=y_cv_pred, mode='lines', name='Trend', line=dict(dash='dash', color='red')))
-        
-        st.plotly_chart(fig_cv, use_container_width=True)
-        
-        slope_cv = mod_cv.coef_[0]
-        if slope_cv < 0:
-            st.success(f"Trend CV je klesající ({slope_cv:.5f}) -> Konvergence.")
-        else:
-            st.error(f"Trend CV je rostoucí ({slope_cv:.5f}) -> Divergence.")
-    else:
-        st.warning("Nedostatek dat pro CV analýzu.")
+        st.warning("Nedostatek dat pro konvergenci.")
